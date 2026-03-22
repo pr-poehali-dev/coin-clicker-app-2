@@ -72,21 +72,52 @@ function fmt(n: number): string {
 }
 
 // ─── Component ────────────────────────────────────────────
+// ─── LocalStorage helpers ────────────────────────────────
+const SAVE_KEY = "cash_clicker_save";
+
+function loadSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function mergeSavedMultipliers(saved: Multiplier[]): Multiplier[] {
+  return INITIAL_MULTIPLIERS.map(init => {
+    const s = saved.find(m => m.id === init.id);
+    return s ? { ...init, purchased: s.purchased, level: s.level } : init;
+  });
+}
+
+function mergeSavedAchievements(saved: Achievement[]): Achievement[] {
+  return INITIAL_ACHIEVEMENTS.map(init => {
+    const s = saved.find(a => a.id === init.id);
+    return s ? { ...init, unlocked: s.unlocked } : init;
+  });
+}
+
 export default function Index() {
+  const saved = loadSave();
+
   const [tab, setTab] = useState<Tab>("clicker");
-  const [score, setScore] = useState(0);
-  const [totalScore, setTotalScore] = useState(0);
-  const [clicks, setClicks] = useState(0);
-  const [multipliers, setMultipliers] = useState<Multiplier[]>(INITIAL_MULTIPLIERS);
-  const [achievements, setAchievements] = useState<Achievement[]>(INITIAL_ACHIEVEMENTS);
+  const [score, setScore] = useState<number>(saved?.score ?? 0);
+  const [totalScore, setTotalScore] = useState<number>(saved?.totalScore ?? 0);
+  const [clicks, setClicks] = useState<number>(saved?.clicks ?? 0);
+  const [multipliers, setMultipliers] = useState<Multiplier[]>(
+    saved?.multipliers ? mergeSavedMultipliers(saved.multipliers) : INITIAL_MULTIPLIERS
+  );
+  const [achievements, setAchievements] = useState<Achievement[]>(
+    saved?.achievements ? mergeSavedAchievements(saved.achievements) : INITIAL_ACHIEVEMENTS
+  );
   const [particles, setParticles] = useState<Particle[]>([]);
   const [isClicking, setIsClicking] = useState(false);
   const [newAchievement, setNewAchievement] = useState<string | null>(null);
-  const [username, setUsername] = useState("Космонавт");
+  const [username, setUsername] = useState<string>(saved?.username ?? "Космонавт");
   const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState("Космонавт");
-  const [soundOn, setSoundOn] = useState(true);
-  const [vibrationOn, setVibrationOn] = useState(true);
+  const [nameInput, setNameInput] = useState<string>(saved?.username ?? "Космонавт");
+  const [soundOn, setSoundOn] = useState<boolean>(saved?.soundOn ?? true);
+  const [vibrationOn, setVibrationOn] = useState<boolean>(saved?.vibrationOn ?? true);
   const [autoClickOn, setAutoClickOn] = useState(false);
   const particleId = useRef(0);
   const autoClickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -110,6 +141,16 @@ export default function Index() {
       return updated;
     });
   }, []);
+
+  // ── Autosave ──────────────────────────────────────────────
+  useEffect(() => {
+    const data = {
+      score, totalScore, clicks, username, soundOn, vibrationOn,
+      multipliers: multipliers.map(m => ({ id: m.id, purchased: m.purchased, level: m.level })),
+      achievements: achievements.map(a => ({ id: a.id, unlocked: a.unlocked })),
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  }, [score, totalScore, clicks, multipliers, achievements, username, soundOn, vibrationOn]);
 
   // ── Handle click ──────────────────────────────────────────
   const handleClick = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -496,9 +537,11 @@ export default function Index() {
                   className="w-full px-4 py-4 text-left flex items-center gap-3 text-red-400 hover:bg-red-500/10 transition-colors"
                   onClick={() => {
                     if (confirm("Сбросить весь прогресс?")) {
+                      localStorage.removeItem(SAVE_KEY);
                       setScore(0); setTotalScore(0); setClicks(0);
                       setMultipliers(INITIAL_MULTIPLIERS);
                       setAchievements(INITIAL_ACHIEVEMENTS);
+                      setUsername("Космонавт"); setNameInput("Космонавт");
                     }
                   }}
                 >
@@ -509,7 +552,10 @@ export default function Index() {
 
               <div className="glass-card rounded-2xl p-4 text-center">
                 <div className="font-orbitron text-xs text-white/20 tracking-wider">CASH CLICKER v1.0</div>
-                <div className="text-white/20 text-xs mt-1">Покори галактику!</div>
+                <div className="text-green-400/60 text-xs mt-1 flex items-center justify-center gap-1">
+                  <Icon name="CloudCheck" size={12} />
+                  Прогресс сохраняется автоматически
+                </div>
               </div>
             </div>
           )}
