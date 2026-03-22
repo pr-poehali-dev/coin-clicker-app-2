@@ -1,101 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Icon from "@/components/ui/icon";
-
-// ─── Types ───────────────────────────────────────────────
-type Tab = "clicker" | "achievements" | "profile" | "settings";
-
-interface Multiplier {
-  id: string;
-  name: string;
-  desc: string;
-  emoji: string;
-  cost: number;
-  multiplier: number;
-  purchased: boolean;
-  level: number;
-  maxLevel: number;
-}
-
-interface Achievement {
-  id: string;
-  name: string;
-  desc: string;
-  emoji: string;
-  target: number;
-  unlocked: boolean;
-  type: "clicks" | "score" | "multiplier";
-}
-
-interface Particle {
-  id: number;
-  x: number;
-  y: number;
-  value: number;
-}
-
-// ─── Stars background ────────────────────────────────────
-const STARS = Array.from({ length: 80 }, (_, i) => ({
-  id: i,
-  x: Math.random() * 100,
-  y: Math.random() * 100,
-  size: Math.random() * 2.5 + 0.5,
-  duration: Math.random() * 4 + 2,
-  delay: Math.random() * 5,
-}));
-
-// ─── Initial data ─────────────────────────────────────────
-const INITIAL_MULTIPLIERS: Multiplier[] = [
-  { id: "m1", name: "Ракетный двигатель", desc: "+2 за клик", emoji: "🚀", cost: 50, multiplier: 2, purchased: false, level: 0, maxLevel: 5 },
-  { id: "m2", name: "Квантовый реактор", desc: "+5 за клик", emoji: "⚛️", cost: 200, multiplier: 5, purchased: false, level: 0, maxLevel: 5 },
-  { id: "m3", name: "Звёздный коллайдер", desc: "+15 за клик", emoji: "💫", cost: 700, multiplier: 15, purchased: false, level: 0, maxLevel: 3 },
-  { id: "m4", name: "Тёмная материя", desc: "+50 за клик", emoji: "🌑", cost: 2500, multiplier: 50, purchased: false, level: 0, maxLevel: 3 },
-  { id: "m5", name: "Сингулярность", desc: "+200 за клик", emoji: "🌌", cost: 10000, multiplier: 200, purchased: false, level: 0, maxLevel: 2 },
-  { id: "m6", name: "Большой Взрыв", desc: "+1000 за клик", emoji: "💥", cost: 50000, multiplier: 1000, purchased: false, level: 0, maxLevel: 1 },
-];
-
-const INITIAL_ACHIEVEMENTS: Achievement[] = [
-  { id: "a1", name: "Первый контакт", desc: "Сделай 10 кликов", emoji: "👆", target: 10, unlocked: false, type: "clicks" },
-  { id: "a2", name: "Звёздный путь", desc: "Сделай 100 кликов", emoji: "⭐", target: 100, unlocked: false, type: "clicks" },
-  { id: "a3", name: "Космонавт", desc: "Сделай 500 кликов", emoji: "👨‍🚀", target: 500, unlocked: false, type: "clicks" },
-  { id: "a4", name: "Астронавт", desc: "Сделай 2000 кликов", emoji: "🧑‍🚀", target: 2000, unlocked: false, type: "clicks" },
-  { id: "a5", name: "Первые монеты", desc: "Набери 100 очков", emoji: "💰", target: 100, unlocked: false, type: "score" },
-  { id: "a6", name: "Тысячник", desc: "Набери 1 000 очков", emoji: "💎", target: 1000, unlocked: false, type: "score" },
-  { id: "a7", name: "Миллионер", desc: "Набери 100 000 очков", emoji: "🏆", target: 100000, unlocked: false, type: "score" },
-  { id: "a8", name: "Первое улучшение", desc: "Купи множитель", emoji: "🔧", target: 1, unlocked: false, type: "multiplier" },
-];
-
-// ─── Format number ────────────────────────────────────────
-function fmt(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return Math.floor(n).toString();
-}
-
-// ─── Component ────────────────────────────────────────────
-// ─── LocalStorage helpers ────────────────────────────────
-const SAVE_KEY = "cash_clicker_save";
-
-function loadSave() {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch { return null; }
-}
-
-function mergeSavedMultipliers(saved: Multiplier[]): Multiplier[] {
-  return INITIAL_MULTIPLIERS.map(init => {
-    const s = saved.find(m => m.id === init.id);
-    return s ? { ...init, purchased: s.purchased, level: s.level } : init;
-  });
-}
-
-function mergeSavedAchievements(saved: Achievement[]): Achievement[] {
-  return INITIAL_ACHIEVEMENTS.map(init => {
-    const s = saved.find(a => a.id === init.id);
-    return s ? { ...init, unlocked: s.unlocked } : init;
-  });
-}
+import {
+  type Tab, type Multiplier, type Achievement, type Particle,
+  SAVE_KEY, STARS, INITIAL_MULTIPLIERS, INITIAL_ACHIEVEMENTS,
+  loadSave, mergeSavedMultipliers, mergeSavedAchievements,
+} from "@/components/clicker/types";
+import TabClicker from "@/components/clicker/TabClicker";
+import TabAchievements from "@/components/clicker/TabAchievements";
+import TabProfile from "@/components/clicker/TabProfile";
+import TabSettings from "@/components/clicker/TabSettings";
+import { fmt } from "@/components/clicker/types";
 
 export default function Index() {
   const saved = loadSave();
@@ -217,15 +131,16 @@ export default function Index() {
     }));
   };
 
-  // ── Rank ────────────────────────────────────────────────
-  const rank = totalScore >= 100000 ? "Повелитель Галактики" :
-    totalScore >= 10000 ? "Звёздный Капитан" :
-    totalScore >= 1000 ? "Пилот" :
-    totalScore >= 100 ? "Стажёр" : "Новобранец";
-  const rankEmoji = totalScore >= 100000 ? "👑" : totalScore >= 10000 ? "🌟" : totalScore >= 1000 ? "🚀" : totalScore >= 100 ? "🛸" : "🪐";
-
-  const unlockedCount = achievements.filter(a => a.unlocked).length;
-  const purchasedMults = multipliers.filter(m => m.purchased).length;
+  // ── Reset ─────────────────────────────────────────────────
+  const handleReset = () => {
+    if (confirm("Сбросить весь прогресс?")) {
+      localStorage.removeItem(SAVE_KEY);
+      setScore(0); setTotalScore(0); setClicks(0);
+      setMultipliers(INITIAL_MULTIPLIERS);
+      setAchievements(INITIAL_ACHIEVEMENTS);
+      setUsername("Космонавт"); setNameInput("Космонавт");
+    }
+  };
 
   return (
     <div className="galaxy-bg min-h-screen relative overflow-hidden font-exo">
@@ -253,13 +168,6 @@ export default function Index() {
           </div>
         </div>
       )}
-
-      {/* Score particles */}
-      {particles.map(p => (
-        <div key={p.id} className="score-particle neon-cyan" style={{
-          left: p.x, top: p.y, fontSize: "18px",
-        }}>+{p.value}</div>
-      ))}
 
       {/* Header */}
       <header className="relative z-10 px-4 pt-4 pb-2">
@@ -304,261 +212,52 @@ export default function Index() {
       <main className="relative z-10 px-4 pb-8 mt-4">
         <div className="max-w-md mx-auto">
 
-          {/* ── CLICKER TAB ─── */}
           {tab === "clicker" && (
-            <div className="animate-fade-in-up">
-              {/* Stats row */}
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                {[
-                  { label: "Кликов", val: fmt(clicks), icon: "MousePointerClick" },
-                  { label: "За клик", val: `+${fmt(clickPower)}`, icon: "Zap" },
-                  { label: "Всего", val: fmt(totalScore), icon: "TrendingUp" },
-                ].map(s => (
-                  <div key={s.label} className="glass-card glow-border-cyan rounded-xl p-3 text-center">
-                    <Icon name={s.icon} size={14} className="mx-auto mb-1 text-cyan-400" />
-                    <div className="font-orbitron font-bold text-sm text-white">{s.val}</div>
-                    <div className="text-white/40 text-xs">{s.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Big coin button */}
-              <div className="flex justify-center mb-6">
-                <div className="relative">
-                  <div className="absolute inset-0 rounded-full border border-cyan-500/20 animate-spin-slow" style={{ margin: "-20px" }} />
-                  <button
-                    className={`click-btn relative w-44 h-44 rounded-full flex items-center justify-center ${isClicking ? "animate-coin-click" : "animate-pulse-glow"}`}
-                    style={{
-                      background: "radial-gradient(circle at 35% 35%, #ffd700, #f59e0b, #d97706, #92400e)",
-                      boxShadow: "0 0 40px rgba(251,191,36,0.4), 0 0 80px rgba(251,191,36,0.15), inset 0 4px 8px rgba(255,255,255,0.3)",
-                    }}
-                    onMouseDown={handleClick}
-                    onTouchStart={handleClick}
-                  >
-                    <div className="flex flex-col items-center">
-                      <span className="text-5xl select-none">🪙</span>
-                      <span className="font-orbitron font-black text-amber-900 text-xs mt-1 tracking-wider">TAP!</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Multipliers */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Icon name="Rocket" size={16} className="text-cyan-400" />
-                  <h2 className="font-orbitron text-sm text-white/70 tracking-wider">УЛУЧШЕНИЯ</h2>
-                </div>
-                <div className="space-y-2">
-                  {multipliers.map(m => {
-                    const cost = m.cost * (m.level + 1);
-                    const canBuy = score >= cost && m.level < m.maxLevel;
-                    const maxed = m.level >= m.maxLevel;
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={() => buyMultiplier(m.id)}
-                        disabled={!canBuy && !maxed}
-                        className={`multiplier-card w-full rounded-xl p-3 flex items-center gap-3 text-left ${m.purchased ? "purchased" : ""} ${maxed ? "opacity-60" : ""}`}
-                      >
-                        <span className="text-2xl">{m.emoji}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-white text-sm">{m.name}</div>
-                          <div className="text-white/40 text-xs">{m.desc}</div>
-                          {m.level > 0 && (
-                            <div className="flex gap-1 mt-1">
-                              {Array.from({ length: m.maxLevel }).map((_, i) => (
-                                <div key={i} className={`h-1 flex-1 rounded-full ${i < m.level ? "bg-cyan-400" : "bg-white/10"}`} />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right shrink-0">
-                          {maxed ? (
-                            <span className="text-green-400 text-xs font-orbitron">МАКС</span>
-                          ) : (
-                            <>
-                              <div className={`font-orbitron font-bold text-sm ${canBuy ? "neon-gold" : "text-white/30"}`}>{fmt(cost)}</div>
-                              <div className="text-white/30 text-xs">очков</div>
-                            </>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+            <TabClicker
+              score={score}
+              clicks={clicks}
+              totalScore={totalScore}
+              clickPower={clickPower}
+              isClicking={isClicking}
+              multipliers={multipliers}
+              particles={particles}
+              onCoinClick={handleClick}
+              onBuyMultiplier={buyMultiplier}
+            />
           )}
 
-          {/* ── ACHIEVEMENTS TAB ─── */}
           {tab === "achievements" && (
-            <div className="animate-fade-in-up">
-              <div className="glass-card glow-border-purple rounded-2xl p-4 mb-4 flex items-center gap-4">
-                <span className="text-4xl">🏆</span>
-                <div>
-                  <div className="font-orbitron font-bold text-white">{unlockedCount} / {achievements.length}</div>
-                  <div className="text-white/50 text-sm">достижений открыто</div>
-                  <div className="mt-2 bg-white/10 rounded-full h-2 w-48 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-purple-500 to-cyan-400 transition-all duration-700"
-                      style={{ width: `${(unlockedCount / achievements.length) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {achievements.map(a => (
-                  <div
-                    key={a.id}
-                    className={`achievement-card rounded-xl p-4 flex items-center gap-4 border ${
-                      a.unlocked ? "achievement-card unlocked border-yellow-500/30" : "achievement-card locked border-white/10"
-                    }`}
-                  >
-                    <span className="text-3xl">{a.emoji}</span>
-                    <div className="flex-1">
-                      <div className="font-semibold text-white">{a.name}</div>
-                      <div className="text-white/40 text-xs">{a.desc}</div>
-                    </div>
-                    {a.unlocked
-                      ? <Icon name="CheckCircle" size={20} className="text-yellow-400 shrink-0" />
-                      : <Icon name="Lock" size={18} className="text-white/20 shrink-0" />
-                    }
-                  </div>
-                ))}
-              </div>
-            </div>
+            <TabAchievements achievements={achievements} />
           )}
 
-          {/* ── PROFILE TAB ─── */}
           {tab === "profile" && (
-            <div className="animate-fade-in-up space-y-4">
-              <div className="glass-card glow-border-cyan rounded-2xl p-6 flex flex-col items-center gap-3">
-                <div
-                  className="w-24 h-24 rounded-full flex items-center justify-center text-5xl animate-float"
-                  style={{
-                    background: "radial-gradient(circle, rgba(0,212,255,0.2), rgba(168,85,247,0.2))",
-                    border: "2px solid rgba(0,212,255,0.4)",
-                    boxShadow: "0 0 30px rgba(0,212,255,0.2)",
-                  }}
-                >
-                  {rankEmoji}
-                </div>
-
-                {editingName ? (
-                  <div className="flex gap-2">
-                    <input
-                      className="bg-white/10 border border-cyan-500/40 rounded-lg px-3 py-1 text-white text-center font-semibold text-sm outline-none focus:border-cyan-400"
-                      value={nameInput}
-                      onChange={e => setNameInput(e.target.value)}
-                      maxLength={20}
-                      autoFocus
-                    />
-                    <button
-                      className="bg-cyan-500/20 border border-cyan-500/40 rounded-lg px-3 py-1 text-cyan-400 text-sm"
-                      onClick={() => { setUsername(nameInput); setEditingName(false); }}
-                    >✓</button>
-                  </div>
-                ) : (
-                  <button
-                    className="flex items-center gap-2 group"
-                    onClick={() => { setNameInput(username); setEditingName(true); }}
-                  >
-                    <span className="font-orbitron font-bold text-xl text-white">{username}</span>
-                    <Icon name="Pencil" size={14} className="text-white/30 group-hover:text-cyan-400 transition-colors" />
-                  </button>
-                )}
-                <span className="font-orbitron text-xs neon-purple tracking-wider">{rank}</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: "Кликов", val: fmt(clicks), emoji: "👆", color: "neon-cyan" },
-                  { label: "Всего очков", val: fmt(totalScore), emoji: "💰", color: "neon-gold" },
-                  { label: "За клик", val: `×${fmt(clickPower)}`, emoji: "⚡", color: "neon-purple" },
-                  { label: "Улучшений", val: `${purchasedMults}/${multipliers.length}`, emoji: "🔧", color: "neon-gold" },
-                ].map(s => (
-                  <div key={s.label} className="glass-card glow-border-cyan rounded-xl p-4">
-                    <span className="text-2xl">{s.emoji}</span>
-                    <div className={`font-orbitron font-bold text-xl mt-1 ${s.color}`}>{s.val}</div>
-                    <div className="text-white/40 text-xs">{s.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="glass-card glow-border-gold rounded-2xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xl">🏆</span>
-                  <span className="font-orbitron text-sm text-white/70">Достижения</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {achievements.filter(a => a.unlocked).map(a => (
-                    <span key={a.id} className="text-2xl" title={a.name}>{a.emoji}</span>
-                  ))}
-                  {unlockedCount === 0 && <span className="text-white/30 text-sm">Пока нет...</span>}
-                </div>
-              </div>
-            </div>
+            <TabProfile
+              username={username}
+              editingName={editingName}
+              nameInput={nameInput}
+              clicks={clicks}
+              totalScore={totalScore}
+              clickPower={clickPower}
+              multipliers={multipliers}
+              achievements={achievements}
+              onEditStart={() => { setNameInput(username); setEditingName(true); }}
+              onNameChange={setNameInput}
+              onNameSave={() => { setUsername(nameInput); setEditingName(false); }}
+            />
           )}
 
-          {/* ── SETTINGS TAB ─── */}
           {tab === "settings" && (
-            <div className="animate-fade-in-up space-y-3">
-              <div className="glass-card glow-border-cyan rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-white/5">
-                  <div className="font-orbitron text-xs text-white/40 tracking-wider">ИГРА</div>
-                </div>
-                {[
-                  { label: "Звук", icon: "Volume2", val: soundOn, set: setSoundOn },
-                  { label: "Вибрация", icon: "Smartphone", val: vibrationOn, set: setVibrationOn },
-                  { label: "Авто-клик (1/сек)", icon: "Zap", val: autoClickOn, set: setAutoClickOn },
-                ].map(s => (
-                  <div key={s.label} className="flex items-center justify-between px-4 py-4 border-b border-white/5 last:border-0">
-                    <div className="flex items-center gap-3">
-                      <Icon name={s.icon} size={18} className="text-cyan-400" />
-                      <span className="text-white font-medium">{s.label}</span>
-                    </div>
-                    <button
-                      onClick={() => s.set(!s.val)}
-                      className={`w-12 h-6 rounded-full transition-all duration-300 relative ${s.val ? "bg-cyan-500" : "bg-white/10"}`}
-                    >
-                      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all duration-300 ${s.val ? "right-1" : "left-1"}`} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="glass-card glow-border-purple rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-white/5">
-                  <div className="font-orbitron text-xs text-white/40 tracking-wider">ПРОГРЕСС</div>
-                </div>
-                <button
-                  className="w-full px-4 py-4 text-left flex items-center gap-3 text-red-400 hover:bg-red-500/10 transition-colors"
-                  onClick={() => {
-                    if (confirm("Сбросить весь прогресс?")) {
-                      localStorage.removeItem(SAVE_KEY);
-                      setScore(0); setTotalScore(0); setClicks(0);
-                      setMultipliers(INITIAL_MULTIPLIERS);
-                      setAchievements(INITIAL_ACHIEVEMENTS);
-                      setUsername("Космонавт"); setNameInput("Космонавт");
-                    }
-                  }}
-                >
-                  <Icon name="RotateCcw" size={18} />
-                  <span className="font-medium">Сбросить прогресс</span>
-                </button>
-              </div>
-
-              <div className="glass-card rounded-2xl p-4 text-center">
-                <div className="font-orbitron text-xs text-white/20 tracking-wider">CASH CLICKER v1.0</div>
-                <div className="text-green-400/60 text-xs mt-1 flex items-center justify-center gap-1">
-                  <Icon name="CloudCheck" size={12} />
-                  Прогресс сохраняется автоматически
-                </div>
-              </div>
-            </div>
+            <TabSettings
+              soundOn={soundOn}
+              vibrationOn={vibrationOn}
+              autoClickOn={autoClickOn}
+              setSoundOn={setSoundOn}
+              setVibrationOn={setVibrationOn}
+              setAutoClickOn={setAutoClickOn}
+              onReset={handleReset}
+            />
           )}
+
         </div>
       </main>
     </div>
