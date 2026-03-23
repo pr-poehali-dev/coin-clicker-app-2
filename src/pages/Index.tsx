@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Icon from "@/components/ui/icon";
 import {
   type Tab, type Multiplier, type Achievement, type Particle,
@@ -37,6 +37,23 @@ export default function Index() {
   const autoClickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clickPower = multipliers.reduce((sum, m) => sum + (m.purchased ? m.multiplier * m.level : 0), 1);
+
+  // ── Live clock ───────────────────────────────────────────
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const dateStr = useMemo(() => {
+    const months = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
+    return `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  }, [now]);
+  const timeStr = useMemo(() => {
+    const h = String(now.getHours()).padStart(2, "0");
+    const m = String(now.getMinutes()).padStart(2, "0");
+    const s = String(now.getSeconds()).padStart(2, "0");
+    return `${h}:${m}:${s}`;
+  }, [now]);
 
   // ── Check achievements ──────────────────────────────────
   const checkAchievements = useCallback((newClicks: number, newTotal: number, purchasedCount: number) => {
@@ -168,6 +185,30 @@ export default function Index() {
           </div>
         </div>
       )}
+
+      {/* Top dashboard bar */}
+      <div className="relative z-10 w-full" style={{ background: "rgba(0,0,0,0.55)", borderBottom: "1px solid rgba(0,212,255,0.12)" }}>
+        <div className="max-w-md mx-auto px-4 py-2 flex items-center justify-between gap-2">
+          {/* Live score */}
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_6px_#4ade80]" />
+            <div>
+              <div className="font-orbitron font-black text-lg neon-gold leading-none">{fmt(score)}</div>
+              <div className="text-white/35 text-[10px] font-orbitron tracking-wider">ОНЛАЙН</div>
+            </div>
+          </div>
+          {/* Per-click */}
+          <div className="flex items-center gap-1.5">
+            <Icon name="Zap" size={13} className="text-cyan-400" />
+            <span className="font-orbitron text-sm text-cyan-300">+{fmt(clickPower)}/клик</span>
+          </div>
+          {/* Date & time */}
+          <div className="text-right">
+            <div className="font-orbitron text-xs text-white/60 tracking-wide">{timeStr}</div>
+            <div className="font-orbitron text-[10px] text-white/35 tracking-wider">{dateStr}</div>
+          </div>
+        </div>
+      </div>
 
       {/* Header */}
       <header className="relative z-10 px-4 pt-4 pb-2">
